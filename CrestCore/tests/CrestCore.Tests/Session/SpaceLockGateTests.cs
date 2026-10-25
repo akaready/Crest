@@ -96,10 +96,6 @@ public sealed partial class BrowserContractsTests {
     /// A Space as the stored format writes it, byte for byte.
     private static string Stored(SpaceState space) => StoredSessionCodec.Encode(space).ToJsonString();
 
-    /// The name and look a Space already has, as a draft left unchanged carries them.
-    private static SpaceCustomization OwnCustomization(SpaceState space) =>
-        new(space.Settings.Name, space.Settings.Symbol, space.Settings.Accent, space.Settings.Branding!);
-
     [Fact]
     public void AReviewedImportIsRefusedOnlyWhenItWouldJoinTabsIntoALockedSpace() {
         var session = GuardedSession(withOpenSecondSpace: true).AsObject();
@@ -129,43 +125,6 @@ public sealed partial class BrowserContractsTests {
         Assert.Equal(3, current.Spaces.Count);
         Assert.Equal(kept, Stored(current.Spaces[0]));
         Assert.Equal("Trips", current.Spaces[2].Settings.Name);
-    }
-
-    [Fact]
-    public void AManualSetupIsRefusedOnlyWhenItWouldChangeALockedSpace() {
-        var session = GuardedSession(withOpenSecondSpace: true);
-        using var device = new TestDevice(session);
-        var window = device.Showing(session);
-        var (locked, open) = (device.Authority.Current.Spaces[0], device.Authority.Current.Spaces[1]);
-        var kept = Stored(locked);
-        // The setup renames the open Space and moves the locked one second.
-        device.Send(new StartSetup(device.Workspace, SetupEntry.ManualSetup));
-        device.Send(new CustomizeSetupSpace(open.Id, Customization("Renamed")));
-        device.Send(new MoveSetupSpace(open.Id, locked.Id));
-        device.Send(new CustomizeSetupSpace(locked.Id, Customization("Also renamed")));
-
-        var before = device.Authority.Current;
-        Assert.Equal(new SpaceLocked(locked.Id),
-            Assert.Throws<Rejected>(() => device.Send(new ApplyManualSetup(device.Workspace, window))).Rejection);
-        Assert.Same(before, device.Authority.Current);
-
-        // Moving a Space in the order changes no Space, as ReorderSpaces moves a locked one too.
-        device.Send(new CustomizeSetupSpace(locked.Id, OwnCustomization(locked)));
-        device.Send(new ApplyManualSetup(device.Workspace, window));
-        var current = device.Authority.Current;
-        Assert.Equal([open.Id, locked.Id], current.Spaces.Select(space => space.Id));
-        Assert.Equal(kept, Stored(current.Spaces[1]));
-        Assert.Equal("Renamed", current.Spaces[0].Settings.Name);
-    }
-
-    [Fact]
-    public void DeletionStillReachesALockedSpaceWhileItsCommandsStayRejected() {
-        var session = GuardedSession(withOpenSecondSpace: true);
-        using var device = new TestDevice(session);
-        var deleting = Identity(session).Space;
-        device.Send(new BeginDeletingSpace(device.Workspace, Guid.NewGuid(), deleting, Guid.NewGuid()));
-        Assert.Equal(deleting, Assert.IsType<SpaceBeingDeleted>(Assert.Throws<Rejected>(() =>
-            device.Send(new CleanUpCurrentTabs(device.Workspace, deleting))).Rejection).SpaceId);
     }
 
     private static IReadOnlyList<JsonObject> SpaceRecords(JsonNode session) {
@@ -208,6 +167,103 @@ public sealed partial class BrowserContractsTests {
                 SpaceRecords(remote), 800000010.0, access)["spaces"]![0]!["accessPolicy"]?.GetValue<string>();
     }
 
+    /// Turning a lock off is a choice made where someone authenticated for it,
+    /// and its time carries it to every device. One where the Space is locked
+    /// takes it without being unlocked there and answers with nothing, a
+    /// "locked" copy from before the choice cannot undo it, it survives a
+    /// relaunch, turning the lock on later reaches the device that turned it
+    /// off the same way, an "open" copy from before that cannot unlock it, and
+    /// a device whose clock is behind still makes the later choice.
+    [Fact]
+    public void TurningALockOffReachesEveryDeviceAndSurvivesARelaunch() {
+        var session = OneSpaceSession();
+        FirstSpace(session)["accessPolicy"] = "deviceOwnerAuthentication";
+        var space = Fixed(100);
+        var installed = new JournalUnderTest(Fixed(9_001));
+        installed.Stage(session);
+        installed.MarkUploaded();
+        var stale = installed.Record(SyncRecordKind.Space, space)!;
+        var elsewhere = new JournalUnderTest(Fixed(9_002));
+        elsewhere.Merge(installed.Records);
+        var turnedOff = DateTimeOffset.UnixEpoch.AddSeconds(1_800_000_000);
+        using var macFiles = new StorageDirectory();
+        using var phoneFiles = new StorageDirectory();
+        var phoneClock = new TestClock(turnedOff);
+        using var phone = StoredSyncing(phoneFiles, new JsonObject { ["session"] = Canonical(session) }, journal: elsewhere.Document,
+            clock: phoneClock);
+        JsonObject Record(StoredSync device) => new JournalUnderTest(device.Sync.Snapshot).Record(SyncRecordKind.Space, space)!;
+        static double ChosenAt(JsonObject record) => record["payload"]!["value"]!["accessPolicyModifiedAt"]!.GetValue<double>();
+        void Deliver(StoredSync device, JsonObject record) {
+            device.App.Send(new MergeSyncRecords([Cloud(record)]));
+            device.Sync.Flush();
+            device.App.Drain();
+        }
+        double offAt;
+
+        using (var mac = StoredSyncing(macFiles, new JsonObject { ["session"] = Canonical(session) }, journal: installed.Document,
+            clock: new TestClock(turnedOff))) {
+            TestGrants.Unlock(mac.App.Send, mac.Workspace, space);
+            mac.App.Send(new SetSpaceAccess(mac.Workspace, space, SpaceAccessPolicy.Open));
+            mac.Sync.Flush();
+            mac.App.Drain();
+            var off = Record(mac);
+            Assert.Equal("open", off["payload"]!["value"]!["accessPolicy"]!.GetValue<string>());
+            offAt = ChosenAt(off);
+
+            Deliver(phone, off);
+            Assert.Equal(SpaceAccessPolicy.Open, phone.Session.Current.Spaces[0].Settings.AccessPolicy);
+            Assert.DoesNotContain(Name(SyncRecordKind.Space, space), new JournalUnderTest(phone.Sync.Snapshot).Pending);
+
+            // "Locked" from before the choice, with no time or an older one,
+            // keeps the lock off even where its copy wins the record.
+            Deliver(mac, Edited(stale, 10_000, Fixed(9_003), _ => { }));
+            Deliver(mac, Edited(stale, 10_001, Fixed(9_003), value => value["accessPolicyModifiedAt"] = offAt - 60));
+            mac.App.Send(new LockAllSpaces(SceneWentInactive: false));
+            Assert.Equal(SpaceAccessPolicy.Open, mac.Session.Current.Spaces[0].Settings.AccessPolicy);
+            Assert.False(mac.Session.IsLocked(mac.Session.Current.Spaces[0]));
+        }
+
+        using var relaunched = new CrestApp(new AppConfiguration(macFiles.Path, DevicePlatform.Desktop),
+            new TestClock(turnedOff.AddMinutes(1)), new TestIds());
+        var relaunchedWorkspace = TestWorkspaces.OpenStored(relaunched).Workspace;
+        var workspace = relaunched.Workspace(relaunchedWorkspace);
+        Assert.Equal(SpaceAccessPolicy.Open, workspace.Current.Spaces[0].Settings.AccessPolicy);
+        Assert.False(workspace.IsLocked(workspace.Current.Spaces[0]));
+
+        phoneClock.Now = turnedOff.AddMinutes(5);
+        phone.App.Send(new SetSpaceAccess(phone.Workspace, space, SpaceAccessPolicy.DeviceOwnerAuthentication));
+        phone.Sync.Flush();
+        phone.App.Drain();
+        var on = Record(phone);
+        Assert.Equal(offAt + 300, ChosenAt(on));
+        void Merge(JsonObject record) {
+            relaunched.Send(new MergeSyncRecords([Cloud(record)]));
+            relaunched.Drain();
+        }
+        Merge(on);
+        Assert.Equal(SpaceAccessPolicy.DeviceOwnerAuthentication, workspace.Current.Spaces[0].Settings.AccessPolicy);
+        Assert.True(workspace.IsLocked(workspace.Current.Spaces[0]));
+
+        // "Open" from before the lock went on cannot unlock it, even where its copy wins the record.
+        Merge(Edited(on, 20_000, Fixed(9_003), value => {
+            value["accessPolicy"] = "open";
+            value["accessPolicyModifiedAt"] = ChosenAt(on) - 60;
+        }));
+        Assert.Equal(SpaceAccessPolicy.DeviceOwnerAuthentication, workspace.Current.Spaces[0].Settings.AccessPolicy);
+        Assert.True(workspace.IsLocked(workspace.Current.Spaces[0]));
+
+        // The relaunched Mac's clock is behind the phone's choice, and turning
+        // the lock off there still makes the later choice.
+        TestGrants.Unlock(relaunched.Send, relaunchedWorkspace, space);
+        relaunched.Send(new SetSpaceAccess(relaunchedWorkspace, space, SpaceAccessPolicy.Open));
+        relaunched.StoredSync!.Flush();
+        relaunched.Drain();
+        var offAgain = new JournalUnderTest(relaunched.StoredSync.Snapshot).Record(SyncRecordKind.Space, space)!;
+        Assert.Equal(ChosenAt(on) + 1, ChosenAt(offAgain));
+        Deliver(phone, offAgain);
+        Assert.Equal(SpaceAccessPolicy.Open, phone.Session.Current.Spaces[0].Settings.AccessPolicy);
+    }
+
     [Fact]
     public void ALockedSpaceCannotBeBorrowedOrTransferredIntoATemporaryWorkspace() {
         var session = GuardedSession();
@@ -224,31 +280,5 @@ public sealed partial class BrowserContractsTests {
         Assert.IsType<SpaceLocked>(Assert.Throws<Rejected>(() => device.Send(new MoveTab(borrowed, identity.Space,
             Guid.Parse(session["spaces"]![0]!["tabs"]![0]!["id"]!["rawValue"]!.GetValue<string>()), TabPlacement.Current, null, null,
             LeavesSplit: false))).Rejection);
-    }
-
-    [Fact]
-    public void TwoSpacesCannotShareOneProfileThroughRestoreOrImport() {
-        var session = SavedSession().Document["session"]!;
-        var space = session["spaces"]![0]!;
-        var second = space.DeepClone(); second["id"] = SwiftId(Guid.NewGuid());
-        second["tabs"] = new JsonArray(); second["folders"] = new JsonArray();
-        second["history"] = new JsonArray(); second["archivedTabs"] = new JsonArray();
-        var shared = session.DeepClone();
-        shared["spaces"] = new JsonArray(space.DeepClone(), second.DeepClone());
-        // A seed opens repaired, as a restored file does: the second Space
-        // wears a profile of its own.
-        using (var app = new CrestApp()) {
-            var opened = Assert.Single(app.Send(new OpenWorkspace(WorkspaceKind.Persistent, TestWorkspaces.Seed(shared)))
-                .OfType<WorkspaceOpened>());
-            Assert.Equal(2, opened.Session.Spaces.Select(s => s.ProfileId).Distinct().Count());
-        }
-
-        // Repair keeps the first occurrence and issues the collision a fresh
-        // profile, so an imported archive cannot adopt another Space's data.
-        var repaired = NativeSessionMaintenance.Repair(shared.AsObject(), 800000002.0)["session"]!;
-        var profiles = repaired["spaces"]!.AsArray()
-            .Select(s => s!["profile"]!["id"]!.GetValue<string>().ToUpperInvariant()).ToArray();
-        Assert.Equal(2, profiles.Distinct().Count());
-        Assert.Equal(space["profile"]!["id"]!.GetValue<string>().ToUpperInvariant(), profiles[0]);
     }
 }

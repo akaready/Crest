@@ -30,8 +30,7 @@ struct BrowserSidebarTabRowSurface: ViewModifier {
     let interaction: BrowserSidebarTabRowInteractionContext
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @AppStorage(BrowserSidebarDensityPreference.scaleKey, store: BrowserSidebarDensityPreference.defaults)
-    private var tabScale = 1.0
+    private var tabScale: Double { BrowserDeviceAppearanceStore.shared.tabScale }
 
     func body(content: Content) -> some View {
         content
@@ -94,13 +93,6 @@ struct BrowserSidebarTabRowSurface: ViewModifier {
                     && configuration.isAvailableForDisplay
                     && configuration.capabilities.supportsOrganization,
                 requiresSelectedSpace: true
-            )
-            .modifier(
-                BrowserSidebarTabRowDropIndicators(
-                    configuration: configuration,
-                    isDropTargeted: interaction.isDropTargeted.wrappedValue,
-                    dropTargetHeight: interaction.dropTargetHeight
-                )
             )
             .browserSidebarReorderZone(
                 .currentTab(configuration.tab.id),

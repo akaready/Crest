@@ -125,7 +125,7 @@ final class BrowserPage: NSObject, BrowserMediaSessionCommandEndpoint {
     var credentialFillRequest: BrowserCredentialFillRequest? { credentialState.fillRequest }
     var credentialSaveCandidate: BrowserCredentialSaveCandidate? { credentialState.saveCandidate }
     /// The pool that owns this page. Weak because the pool owns the page.
-    @ObservationIgnored weak var host: (any BrowserPageHosting)?
+    @ObservationIgnored weak var host: BrowserPagePool?
     @ObservationIgnored var windowRouting: BrowserPageWindowRouting?
 
     /// True when web content opened this page through `window.open()`. WebKit
@@ -171,8 +171,6 @@ final class BrowserPage: NSObject, BrowserMediaSessionCommandEndpoint {
     @ObservationIgnored let profileID: UUID
     @ObservationIgnored let spaceName: String
     @ObservationIgnored let navigationDecider: BrowserNavigationDecider
-    /// Opens a URL in a new tab of the page's window.
-    @ObservationIgnored let openNewTab: (URL) -> Void
     @ObservationIgnored let externalSchemeCoordinator: BrowserExternalSchemeCoordinator
     /// The URL Crest asked this page to load, as opposed to one web content
     /// asked for. Only an app-initiated load may reach a `file:` URL.
@@ -279,7 +277,6 @@ final class BrowserPage: NSObject, BrowserMediaSessionCommandEndpoint {
             @escaping BrowserHTTPAuthenticationSession.LoadCredential = { _ in nil },
         saveHTTPAuthenticationCredential:
             @escaping BrowserHTTPAuthenticationSession.SaveCredential = { _ in },
-        openNewTab: @escaping (URL) -> Void,
         openModifiedLink: @escaping (URLRequest, UUID, Bool) -> Void = { _, _, _ in },
         openPeek: @escaping (BrowserPeekRequest) -> Void = { _ in },
         handleLinkDrag: @escaping (BrowserPeekInteractionEvent) -> Void = { _ in },
@@ -356,7 +353,6 @@ final class BrowserPage: NSObject, BrowserMediaSessionCommandEndpoint {
             opensExternalURL: opensExternalURL
         )
         self.externalSchemeCoordinator = externalSchemeCoordinator
-        self.openNewTab = openNewTab
         super.init()
         corePage.engineMoved = { [weak self] in self?.moveToNewEngine() }
         installEngine()
@@ -561,6 +557,7 @@ final class BrowserPage: NSObject, BrowserMediaSessionCommandEndpoint {
             page: adapter.enginePage, permissionCenter: permissionCenter, spaceID: spaceID)
         engineInfoBars = []
         shareSourceOffer = nil
+        isRegionCapturePresented = false
         isSharedAsTab = false
         isSharingTab = false
         sharedTabPageIDs = []
@@ -624,6 +621,10 @@ final class BrowserPage: NSObject, BrowserMediaSessionCommandEndpoint {
 
     func cancelRegionCapture() {
         isRegionCapturePresented = false
+    }
+
+    func toggleRegionCapture() {
+        if isRegionCapturePresented { cancelRegionCapture() } else { beginRegionCapture() }
     }
 
     func captureRegion(_ rect: CGRect) {
@@ -1119,7 +1120,7 @@ final class BrowserPage: NSObject, BrowserMediaSessionCommandEndpoint {
         // Cancel the current pull here; suspend new pulls only when WebKit
         // actually starts provisional navigation.
         linkDrag?.cancel()
-        engineAdapter.prepareForNavigation()
+        isRegionCapturePresented = false
         sitePermissionSession.resetMediaGrants()
         sitePermissionRequests.cancelAll()
         translation.reset()

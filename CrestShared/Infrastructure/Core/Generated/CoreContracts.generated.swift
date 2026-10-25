@@ -235,7 +235,6 @@ enum Rejection: Equatable, Error, Sendable {
     case invalidCredentialOrigin(InvalidCredentialOrigin)
     case invalidCredentialRecord(InvalidCredentialRecord)
     case invalidCredentialUsername(InvalidCredentialUsername)
-    case invalidDateRange(InvalidDateRange)
     case invalidDownloadIdentity(InvalidDownloadIdentity)
     case invalidDownloadProgress(InvalidDownloadProgress)
     case invalidDownloadSample(InvalidDownloadSample)
@@ -1059,6 +1058,7 @@ struct AppPreferences: Equatable, Sendable {
         savedTabFaviconReturnsToSavedURL: false,
         splitFocusFollowsMouse: false,
         automaticallyShowsDeveloperToolbar: true,
+        showsRecentTabs: true,
         palette: PalettePreferences(
             layout: PaletteLayout.sections,
             sources: [
@@ -1080,7 +1080,8 @@ struct AppPreferences: Equatable, Sendable {
             completesInline: true,
             learnsChoices: true,
             searchesSitesWithTab: true,
-            showsReasons: false
+            showsReasons: false,
+            providerSpaceTrigger: SearchProviderSpaceTrigger.prefixedShortcut
         )
     )
 
@@ -1094,6 +1095,7 @@ struct AppPreferences: Equatable, Sendable {
     var savedTabFaviconReturnsToSavedURL: Bool
     var splitFocusFollowsMouse: Bool
     var automaticallyShowsDeveloperToolbar: Bool
+    var showsRecentTabs: Bool
     var palette: PalettePreferences
 }
 
@@ -1398,10 +1400,6 @@ struct CanTearOff: Query, Equatable, Sendable {
     let profileID: UUID
     let tabID: UUID
     let draggedTabs: [UUID]?
-}
-
-struct CancelClosePreparation: Intent, CloseIntent, Equatable, Sendable {
-    let requestID: UUID
 }
 
 struct CancelDownload: Intent, DownloadIntent, Equatable, Sendable {
@@ -2315,6 +2313,7 @@ struct DropAroundTab: Intent, SessionIntent, SidebarDrop, Equatable, Sendable {
     let spaceID: UUID
     let selection: TabSelection
     let tabID: UUID
+    let title: String?
 }
 
 struct DropIntoList: Intent, SessionIntent, SidebarDrop, Equatable, Sendable {
@@ -2893,6 +2892,7 @@ struct FolderTabs: Intent, SessionIntent, Equatable, Sendable {
     let spaceID: UUID
     let selection: TabSelection
     let placement: TabPlacement
+    let title: String?
 }
 
 struct FolderTabsAround: Intent, SessionIntent, Equatable, Sendable {
@@ -2901,6 +2901,7 @@ struct FolderTabsAround: Intent, SessionIntent, Equatable, Sendable {
     let spaceID: UUID
     let selection: TabSelection
     let tabID: UUID
+    let title: String?
 }
 
 struct FoldersChanged: CoreChange, Equatable, Sendable {
@@ -3261,9 +3262,6 @@ struct InvalidCredentialRecord: Equatable, Sendable {
 struct InvalidCredentialUsername: Equatable, Sendable {
 }
 
-struct InvalidDateRange: Equatable, Sendable {
-}
-
 struct InvalidDownloadIdentity: Equatable, Sendable {
 }
 
@@ -3441,7 +3439,6 @@ struct LaunchEnvironment: Equatable, Sendable {
         forcesOnboardingWelcome: false,
         forcesDesktopSetup: false,
         forcesMobileSetup: false,
-        runsPerformanceHarness: false,
         usesUpdateTestFeed: false
     )
 
@@ -3456,7 +3453,6 @@ struct LaunchEnvironment: Equatable, Sendable {
     var forcesOnboardingWelcome: Bool
     var forcesDesktopSetup: Bool
     var forcesMobileSetup: Bool
-    var runsPerformanceHarness: Bool
     var usesUpdateTestFeed: Bool
 }
 
@@ -3775,15 +3771,6 @@ struct MovePageToWindow: PageRequest, Equatable, Sendable {
 struct MoveSetupSpace: Intent, SetupDraftIntent, Equatable, Sendable {
     let spaceID: UUID
     let targetSpaceID: UUID
-}
-
-struct MoveSplit: Intent, SessionIntent, Equatable, Sendable {
-    let workspaceID: UUID
-    let spaceID: UUID
-    let groupID: UUID
-    let placement: TabPlacement
-    let folderID: UUID?
-    let beforeTabID: UUID?
 }
 
 struct MoveSplitMember: Intent, SessionIntent, Equatable, Sendable {
@@ -4525,7 +4512,8 @@ struct PalettePreferences: Equatable, Sendable {
         completesInline: true,
         learnsChoices: true,
         searchesSitesWithTab: true,
-        showsReasons: false
+        showsReasons: false,
+        providerSpaceTrigger: SearchProviderSpaceTrigger.prefixedShortcut
     )
 
     var layout: PaletteLayout
@@ -4536,6 +4524,7 @@ struct PalettePreferences: Equatable, Sendable {
     var learnsChoices: Bool
     var searchesSitesWithTab: Bool
     var showsReasons: Bool
+    var providerSpaceTrigger: SearchProviderSpaceTrigger
 }
 
 struct PaletteRow: Equatable, Sendable {
@@ -4895,6 +4884,21 @@ struct ReassignShortcut: Intent, ShortcutIntent, Equatable, Sendable {
     let keys: KeyCombination
 }
 
+struct RecentTabItem: Equatable, Sendable {
+    let tabIDs: [UUID]
+    let focusedTabID: UUID
+}
+
+struct RecentTabList: Equatable, Sendable {
+    let items: [RecentTabItem]
+}
+
+struct RecentTabs: Query, Equatable, Sendable {
+    typealias Answer = RecentTabList
+
+    let windowID: UUID
+}
+
 struct RecordCloudFields: Intent, CloudTransportIntent, Equatable, Sendable {
     let updated: [CloudRecordFields]
     let removed: [String]
@@ -4987,13 +4991,6 @@ struct RemoveHistoryAddress: Intent, SessionIntent, Equatable, Sendable {
     let workspaceID: UUID
     let spaceID: UUID
     let address: String
-}
-
-struct RemoveHistoryRange: Intent, SessionIntent, Equatable, Sendable {
-    let workspaceID: UUID
-    let spaceID: UUID
-    let start: Date
-    let end: Date
 }
 
 struct RemoveLinkRoute: Intent, LinkIntent, Equatable, Sendable {
@@ -5759,7 +5756,6 @@ struct SetupImportReview: Equatable, Sendable {
     let nextSpaceID: UUID?
     let showsLastSpace: Bool
     let includedPasswordCount: Int
-    let includedExtensionCount: Int
     let newSpaceCapacity: Int
     let extensionInstalls: [ImportExtensionInstall]
 }
@@ -5853,6 +5849,10 @@ struct ShowHistoryEntry: Intent, PageIntent, Equatable, Sendable {
 
 struct ShowImportSpace: Intent, SetupFlowIntent, Equatable, Sendable {
     let sourceSpaceID: UUID
+}
+
+struct ShowLeastRecentTab: Intent, WindowIntent, Equatable, Sendable {
+    let windowID: UUID
 }
 
 struct ShowMostRecentTab: Intent, WindowIntent, Equatable, Sendable {
@@ -6184,6 +6184,7 @@ struct SpaceSettings: Equatable, Sendable {
     let isSavedTabsExpanded: Bool
     let savedTabsExpansionModifiedAt: Date?
     let credentialsEnabledModifiedAt: Date?
+    let accessPolicyModifiedAt: Date?
     let look: SpaceBranding
     let requiresAuthentication: Bool
 
@@ -6200,6 +6201,7 @@ struct SpaceSettings: Equatable, Sendable {
         var isSavedTabsExpanded: Bool
         var savedTabsExpansionModifiedAt: Date?
         var credentialsEnabledModifiedAt: Date?
+        var accessPolicyModifiedAt: Date?
     }
 
     /// The record's fields alone, as a platform sends it back.
@@ -6214,7 +6216,8 @@ struct SpaceSettings: Equatable, Sendable {
             accessPolicy: accessPolicy,
             isSavedTabsExpanded: isSavedTabsExpanded,
             savedTabsExpansionModifiedAt: savedTabsExpansionModifiedAt,
-            credentialsEnabledModifiedAt: credentialsEnabledModifiedAt
+            credentialsEnabledModifiedAt: credentialsEnabledModifiedAt,
+            accessPolicyModifiedAt: accessPolicyModifiedAt
         )
     }
 }
@@ -16955,6 +16958,90 @@ struct SearchProviderOption: Hashable, Sendable {
     }
 }
 
+/// The members of the core's `SearchProviderSpaceTrigger`. A member's wire tag is its index in `all`.
+struct SearchProviderSpaceTrigger: Hashable, Sendable {
+    let tag: Int
+    var name: String { facts.name }
+    var title: LocalizedStringResource { facts.title }
+    var example: LocalizedStringResource { facts.example }
+    var isEnabled: Bool { facts.isEnabled }
+    var requiresPrefix: Bool { facts.requiresPrefix }
+    private let facts: Facts
+
+    private init(
+        tag: Int,
+        name: String,
+        title: LocalizedStringResource,
+        example: LocalizedStringResource,
+        isEnabled: Bool,
+        requiresPrefix: Bool
+    ) {
+        self.tag = tag
+        facts = Facts(name: name, title: title, example: example, isEnabled: isEnabled, requiresPrefix: requiresPrefix)
+    }
+
+    static let off = SearchProviderSpaceTrigger(
+        tag: 0,
+        name: "off",
+        title: LocalizedStringResource("Off"),
+        example: LocalizedStringResource("A space after a provider’s shortcut stays a space."),
+        isEnabled: false,
+        requiresPrefix: false
+    )
+    static let prefixedShortcut = SearchProviderSpaceTrigger(
+        tag: 1,
+        name: "prefixedShortcut",
+        title: LocalizedStringResource("After $ and a shortcut"),
+        example: LocalizedStringResource("Type $yt and a space to search YouTube."),
+        isEnabled: true,
+        requiresPrefix: true
+    )
+    static let shortcut = SearchProviderSpaceTrigger(
+        tag: 2,
+        name: "shortcut",
+        title: LocalizedStringResource("After a shortcut"),
+        example: LocalizedStringResource("Type yt or $yt and a space to search YouTube."),
+        isEnabled: true,
+        requiresPrefix: false
+    )
+
+    static let all: [SearchProviderSpaceTrigger] = [off, prefixedShortcut, shortcut]
+
+    static func named(_ name: String?) -> SearchProviderSpaceTrigger? {
+        all.first { $0.name == name }
+    }
+
+    static func == (lhs: SearchProviderSpaceTrigger, rhs: SearchProviderSpaceTrigger) -> Bool {
+        lhs.tag == rhs.tag
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(tag)
+    }
+
+    private final class Facts: Sendable {
+        let name: String
+        let title: LocalizedStringResource
+        let example: LocalizedStringResource
+        let isEnabled: Bool
+        let requiresPrefix: Bool
+
+        init(
+            name: String,
+            title: LocalizedStringResource,
+            example: LocalizedStringResource,
+            isEnabled: Bool,
+            requiresPrefix: Bool
+        ) {
+            self.name = name
+            self.title = title
+            self.example = example
+            self.isEnabled = isEnabled
+            self.requiresPrefix = requiresPrefix
+        }
+    }
+}
+
 /// The members of the core's `SetupEntry`. A member's wire tag is its index in `all`.
 /// Core-only behavior, not emitted: `opensGuide`.
 struct SetupEntry: Hashable, Sendable {
@@ -17303,6 +17390,8 @@ struct ShortcutCommand: Hashable, Sendable {
         case openFile
         case findNext
         case findPrevious
+        case capturePage
+        case mostRecentTabBackward
     }
 
     let tag: Int
@@ -19193,6 +19282,57 @@ struct ShortcutCommand: Hashable, Sendable {
         offersInPalette: true,
         isReservedFromPages: false
     )
+    static let capturePage = ShortcutCommand(
+        tag: 70,
+        kind: .capturePage,
+        name: "capturePage",
+        section: ShortcutSection.page,
+        title: LocalizedStringResource("Capture Page"),
+        searchTerms: LocalizedStringResource("screenshot snapshot region selection image clipboard"),
+        menuTitle: nil,
+        symbol: "camera",
+        requiredCapability: EngineCapability.viewportCapture,
+        selects: nil,
+        number: nil,
+        defaultShortcuts: [
+            ShortcutDefault(
+                platform: DevicePlatform.desktop,
+                keys: KeyCombination(key: "2", isSpecialKey: false, modifiers: [.command, .shift]),
+                yieldsToOverrides: true
+            )
+        ],
+        paletteRest: nil,
+        offersInPalette: true,
+        isReservedFromPages: false
+    )
+    static let mostRecentTabBackward = ShortcutCommand(
+        tag: 71,
+        kind: .mostRecentTabBackward,
+        name: "mostRecentTabBackward",
+        section: ShortcutSection.tabs,
+        title: LocalizedStringResource("Most Recent Tab Backward"),
+        searchTerms: LocalizedStringResource("toggle recent switch tabs oldest back"),
+        menuTitle: nil,
+        symbol: "arrow.left.arrow.right",
+        requiredCapability: nil,
+        selects: nil,
+        number: nil,
+        defaultShortcuts: [
+            ShortcutDefault(
+                platform: DevicePlatform.desktop,
+                keys: KeyCombination(key: "tab", isSpecialKey: true, modifiers: [.control, .shift]),
+                yieldsToOverrides: true
+            ),
+            ShortcutDefault(
+                platform: DevicePlatform.mobile,
+                keys: KeyCombination(key: "tab", isSpecialKey: true, modifiers: [.control, .shift]),
+                yieldsToOverrides: true
+            )
+        ],
+        paletteRest: nil,
+        offersInPalette: true,
+        isReservedFromPages: true
+    )
 
     static let all: [ShortcutCommand] = [
         newWindow,
@@ -19264,7 +19404,9 @@ struct ShortcutCommand: Hashable, Sendable {
         toggleTranslationToolbar,
         openFile,
         findNext,
-        findPrevious
+        findPrevious,
+        capturePage,
+        mostRecentTabBackward
     ]
 
     static func named(_ name: String?) -> ShortcutCommand? {
@@ -19395,7 +19537,12 @@ struct ShortcutMenu: Hashable, Sendable {
                 ShortcutCommand.clearUnpinnedTabs,
                 ShortcutCommand.archiveTab
             ],
-            [ShortcutCommand.previousTab, ShortcutCommand.nextTab, ShortcutCommand.mostRecentTab],
+            [
+                ShortcutCommand.previousTab,
+                ShortcutCommand.nextTab,
+                ShortcutCommand.mostRecentTab,
+                ShortcutCommand.mostRecentTabBackward
+            ],
             [
                 ShortcutCommand.splitWithNextTab,
                 ShortcutCommand.focusNextSplitCard,
@@ -19450,7 +19597,8 @@ struct ShortcutMenu: Hashable, Sendable {
                 ShortcutCommand.copyPageLinkAsMarkdown,
                 ShortcutCommand.sharePage,
                 ShortcutCommand.exportPDF,
-                ShortcutCommand.saveWebArchive
+                ShortcutCommand.saveWebArchive,
+                ShortcutCommand.capturePage
             ]
         ]
     )
@@ -23348,6 +23496,10 @@ final class SpaceSettingsModel: ObservedModel {
         access(keyPath: \.credentialsEnabledModifiedAt)
         return credentialsEnabledModifiedAtStorage
     }
+    var accessPolicyModifiedAt: Date? {
+        access(keyPath: \.accessPolicyModifiedAt)
+        return accessPolicyModifiedAtStorage
+    }
     var look: SpaceBranding {
         access(keyPath: \.look)
         return lookStorage
@@ -23367,6 +23519,7 @@ final class SpaceSettingsModel: ObservedModel {
     @ObservationIgnored private var isSavedTabsExpandedStorage: Bool
     @ObservationIgnored private var savedTabsExpansionModifiedAtStorage: Date?
     @ObservationIgnored private var credentialsEnabledModifiedAtStorage: Date?
+    @ObservationIgnored private var accessPolicyModifiedAtStorage: Date?
     @ObservationIgnored private var lookStorage: SpaceBranding
     @ObservationIgnored private var requiresAuthenticationStorage: Bool
 
@@ -23382,6 +23535,7 @@ final class SpaceSettingsModel: ObservedModel {
             isSavedTabsExpanded: isSavedTabsExpanded,
             savedTabsExpansionModifiedAt: savedTabsExpansionModifiedAt,
             credentialsEnabledModifiedAt: credentialsEnabledModifiedAt,
+            accessPolicyModifiedAt: accessPolicyModifiedAt,
             look: look,
             requiresAuthentication: requiresAuthentication
         )
@@ -23398,6 +23552,7 @@ final class SpaceSettingsModel: ObservedModel {
         isSavedTabsExpandedStorage = value.isSavedTabsExpanded
         savedTabsExpansionModifiedAtStorage = value.savedTabsExpansionModifiedAt
         credentialsEnabledModifiedAtStorage = value.credentialsEnabledModifiedAt
+        accessPolicyModifiedAtStorage = value.accessPolicyModifiedAt
         lookStorage = value.look
         requiresAuthenticationStorage = value.requiresAuthentication
     }
@@ -23442,6 +23597,10 @@ final class SpaceSettingsModel: ObservedModel {
         if credentialsEnabledModifiedAtStorage != value.credentialsEnabledModifiedAt {
             credentialsEnabledModifiedAtStorage = value.credentialsEnabledModifiedAt
             withMutation(keyPath: \.credentialsEnabledModifiedAt) {}
+        }
+        if accessPolicyModifiedAtStorage != value.accessPolicyModifiedAt {
+            accessPolicyModifiedAtStorage = value.accessPolicyModifiedAt
+            withMutation(keyPath: \.accessPolicyModifiedAt) {}
         }
         if lookStorage != value.look {
             lookStorage = value.look

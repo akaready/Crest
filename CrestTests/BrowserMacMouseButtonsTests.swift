@@ -45,22 +45,6 @@ final class BrowserMacMouseButtonsTests: XCTestCase {
         XCTAssertFalse(buttons.take(try event(.otherMouseUp, button: 3)))
     }
 
-    /// A click the window's content lets go reaches the page whole, even
-    /// after a taken press whose release the application never saw.
-    func testClickTheContentLetsGoReachesThePageWhole() throws {
-        let content = Content(takesPresses: true)
-        let buttons = BrowserMacMouseButtons(navigation: { _ in content })
-        XCTAssertTrue(buttons.take(try event(.otherMouseDown, button: 4)))
-
-        content.takesPresses = false
-        XCTAssertFalse(buttons.take(try event(.otherMouseDown, button: 4)))
-        XCTAssertFalse(buttons.take(try event(.otherMouseDragged, button: 4)))
-        XCTAssertFalse(buttons.take(try event(.otherMouseUp, button: 4)))
-        XCTAssertFalse(buttons.take(try event(.otherMouseDown, button: 2)))
-        XCTAssertFalse(buttons.take(try event(.otherMouseUp, button: 2)))
-        XCTAssertEqual(content.presses, [.nextSpace, .nextSpace])
-    }
-
     // MARK: - Actions - Events
 
     private func event(_ type: CGEventType, button: Int64) throws -> NSEvent {

@@ -117,13 +117,23 @@ extension BrowserStore {
             SetDefaultSpace(workspaceID: profileSettingsBrowser.family.workspaceID, spaceID: spaceID))
     }
 
+    /// Sets who may open a Space through the core, and answers the rule that
+    /// refused it, such as the Space being locked, or nil once the core took
+    /// it. A refusal is the caller's to show; it is no sync failure.
+    @discardableResult
     func updateSpaceAccessPolicy(
         _ accessPolicy: SpaceAccessPolicy,
         in spaceID: UUID
-    ) {
-        sendSpaceSettings(
-            SetSpaceAccess(
-                workspaceID: profileSettingsBrowser.family.workspaceID, spaceID: spaceID, policy: accessPolicy))
+    ) -> Rejection? {
+        let owner = profileSettingsBrowser
+        do throws(Rejection) {
+            try owner.family.commit(
+                SetSpaceAccess(workspaceID: owner.family.workspaceID, spaceID: spaceID, policy: accessPolicy),
+                from: owner)
+            return nil
+        } catch {
+            return error
+        }
     }
 
     /// Sends an intent about a Space's settings to the workspace that owns
@@ -202,7 +212,7 @@ extension BrowserStore {
 
     @discardableResult
     func addFolder(
-        title: String = "New Folder",
+        title: String = BrowserStore.newFolderTitle,
         color: BrandColor = .folderDefault,
         parentID: UUID? = nil,
         in spaceID: UUID
@@ -233,7 +243,7 @@ extension BrowserStore {
 
     @discardableResult
     func addFolder(
-        title: String = "New Folder",
+        title: String = BrowserStore.newFolderTitle,
         color: BrandColor = .folderDefault,
         parentID: UUID? = nil,
         matching assignment: BrowserSpaceRuntimeAssignment

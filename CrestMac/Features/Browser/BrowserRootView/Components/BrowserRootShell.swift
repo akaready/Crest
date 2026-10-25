@@ -6,7 +6,6 @@ struct BrowserRootShell: View, BrowserChromeAnimating {
     let spaceSettingsPresentation: BrowserSpaceSettingsPresentationState
     let shortcuts: BrowserShortcutStore?
     @Binding var storedSidebarWidth: Double
-    var appearance = BrowserChromeAppearance()
     let commandSurfaceNamespace: Namespace.ID
     let tabPromotionNamespace: Namespace.ID
 
@@ -18,7 +17,11 @@ struct BrowserRootShell: View, BrowserChromeAnimating {
     @AppStorage(SidebarFullscreenRevealPreference.key, store: BrowserChromeAppearancePreference.defaults)
     private var revealsSidebarInFullscreen = SidebarFullscreenRevealPreference.defaultValue
 
-    private var sidebarEdge: HorizontalEdge { appearance.sidebarEdge(in: layoutDirection) }
+    /// The shell places the sidebar; the page frames under it read the rest.
+    private var sidebarOnRight: Bool { BrowserDeviceAppearanceStore.shared.sidebarOnRight }
+    private var sidebarEdge: HorizontalEdge {
+        BrowserChromeAppearance.sidebarEdge(onRight: sidebarOnRight, in: layoutDirection)
+    }
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -50,13 +53,17 @@ struct BrowserRootShell: View, BrowserChromeAnimating {
             // style while AppKit is carrying it into fullscreen.
             BrowserNativeWindowControlsBridge(
                 isVisible: model.sidebarPresentation.showsWindowControls,
-                sidebarOnRight: appearance.sidebarOnRight,
+                sidebarOnRight: sidebarOnRight,
                 sidebarWidth: model.sidebarWidth
             )
             .frame(maxWidth: .infinity)
             .frame(height: 0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+
+            // A held Most Recent Tab shortcut shows the recent tabs over the
+            // window, fullscreen page or not.
+            BrowserRecentTabsLayer(chrome: model.chrome)
 
             // Notices show over a fullscreen page too, so one posted there
             // is never lost.
@@ -80,7 +87,6 @@ struct BrowserRootShell: View, BrowserChromeAnimating {
         // so the sidebar reads it from here rather than being handed a value
         // per tab through the tree between them.
         .environment(downloadFeedback)
-        .environment(\.browserChromeAppearance, appearance)
         .environment(\.spacePagerPresentation, spacePagerPresentation)
         .environment(
             \.browserWebFocusRestorationGate,
@@ -92,7 +98,7 @@ struct BrowserRootShell: View, BrowserChromeAnimating {
                 pageChromeOwnsFocus: false
             )
         )
-        .animation(chromeAnimation(CrestMotion.collection), value: appearance.sidebarOnRight)
+        .animation(chromeAnimation(CrestMotion.collection), value: sidebarOnRight)
         .animation(
             chromeAnimation(
                 model.isSidebarApproachingDock
@@ -161,7 +167,7 @@ struct BrowserRootShell: View, BrowserChromeAnimating {
             ) {
                 BrowserSpacePageSurface(
                     model: model, transientBrowsing: transientBrowsing,
-                    tabPromotionNamespace: tabPromotionNamespace, shortcuts: shortcuts, appearance: appearance
+                    tabPromotionNamespace: tabPromotionNamespace, shortcuts: shortcuts
                 )
                 .clipped()
             } sidebar: {
@@ -172,7 +178,7 @@ struct BrowserRootShell: View, BrowserChromeAnimating {
             .allowsHitTesting(!model.chrome.isCommandPalettePresented)
             .accessibilityHidden(model.chrome.isCommandPalettePresented)
 
-            BrowserRootUtilityFanLayer(model: model, sidebarOnRight: appearance.sidebarOnRight)
+            BrowserRootUtilityFanLayer(model: model, sidebarOnRight: sidebarOnRight)
                 .zIndex(BrowserRootMetrics.utilityFanZIndex)
 
             BrowserMacDownloadFeedbackLayer(model: model, feedback: downloadFeedback)

@@ -14,6 +14,9 @@
         }
       }
     },
+    "“%@” locked again. Try again." : {
+
+    },
     "@ Filters" : {
 
     },
@@ -375,6 +378,9 @@
           }
         }
       }
+    },
+    "%@, %lld of %lld" : {
+
     },
     "%@, build %@, bundle identifier: %@" : {
 
@@ -824,6 +830,9 @@
 
     },
     "%lld pt" : {
+
+    },
+    "%lld saved passwords can’t be read" : {
 
     },
     "%lld symbols" : {
@@ -1526,6 +1535,9 @@
     "1 item selected" : {
 
     },
+    "1 saved password can’t be read" : {
+
+    },
     "1 tab selected" : {
 
     },
@@ -1605,6 +1617,9 @@
       }
     },
     "A simplified Crest branding preview" : {
+
+    },
+    "A space after a provider’s shortcut stays a space." : {
 
     },
     "A Space can contain up to %lld custom search engines." : {
@@ -1878,6 +1893,9 @@
     "AFTER" : {
 
     },
+    "After $ and a shortcut" : {
+
+    },
     "After 1 Hour" : {
 
     },
@@ -1894,6 +1912,9 @@
 
     },
     "After 30 Days" : {
+
+    },
+    "After a shortcut" : {
 
     },
     "After closing" : {
@@ -2944,6 +2965,9 @@
     "Capture in Portrait Mode" : {
 
     },
+    "Capture Page" : {
+
+    },
     "Capture Window" : {
 
     },
@@ -3961,6 +3985,9 @@
     "Couldn’t change app icon" : {
 
     },
+    "Couldn’t change the lock on “%@”" : {
+
+    },
     "Couldn’t check password" : {
       "localizations" : {
         "ar" : {
@@ -4248,6 +4275,9 @@
         }
       }
     },
+    "Crest can’t show or fill them. This cannot be undone." : {
+
+    },
     "Crest colors" : {
 
     },
@@ -4380,6 +4410,9 @@
           }
         }
       }
+    },
+    "Crest couldn’t remove the passwords it can’t read." : {
+
     },
     "Crest couldn’t save a strong password. Nothing was filled." : {
 
@@ -6079,6 +6112,9 @@
           }
         }
       }
+    },
+    "Fit Space icons to sidebar" : {
+
     },
     "Flags" : {
 
@@ -8093,6 +8129,9 @@
           }
         }
       }
+    },
+    "Most Recent Tab Backward" : {
+
     },
     "Most Stars" : {
 
@@ -10309,6 +10348,9 @@
     "Rearrange Spaces" : {
 
     },
+    "Recent tabs" : {
+
+    },
     "Recent Tabs" : {
 
     },
@@ -10566,6 +10608,9 @@
     "Remove last color" : {
 
     },
+    "Remove Passwords Crest Can’t Read?" : {
+
+    },
     "Remove Pattern Color" : {
 
     },
@@ -10594,6 +10639,9 @@
           }
         }
       }
+    },
+    "Remove…" : {
+
     },
     "Removing download records doesn’t delete the files." : {
 
@@ -11464,6 +11512,9 @@
     "Screen Sharing" : {
 
     },
+    "screenshot snapshot region selection image clipboard" : {
+
+    },
     "Scripts run with the page’s own access to the site." : {
 
     },
@@ -12165,6 +12216,9 @@
         }
       }
     },
+    "Show recent tabs while switching" : {
+
+    },
     "Show Saved Files" : {
 
     },
@@ -12487,6 +12541,9 @@
         }
       }
     },
+    "Space icon size" : {
+
+    },
     "Space in review" : {
 
     },
@@ -12513,6 +12570,9 @@
 
     },
     "Space Skipped" : {
+
+    },
+    "Space to search providers" : {
 
     },
     "Space Unavailable" : {
@@ -12958,6 +13018,9 @@
     "Storm Gold" : {
 
     },
+    "Stretch pins to fill the row" : {
+
+    },
     "Strict" : {
 
     },
@@ -13094,6 +13157,9 @@
       }
     },
     "Switch to tabs opened from links" : {
+
+    },
+    "Switching" : {
 
     },
     "Sword" : {
@@ -14408,10 +14474,16 @@
     "Type @tabs, @saved, @history, @actions or @spaces, then a space or Tab, to show only that kind." : {
 
     },
-    "Type a provider’s name or shortcut and press Tab, or type $ and its shortcut, then a space." : {
+    "Type $yt and a space to search YouTube." : {
+
+    },
+    "Type a provider’s name or shortcut and press Tab." : {
 
     },
     "Type Shortcut" : {
+
+    },
+    "Type yt or $yt and a space to search YouTube." : {
 
     },
     "Typing" : {
@@ -15360,6 +15432,9 @@
           }
         }
       }
+    },
+    "Opened in Background Tab" : {
+
     }
   },
   "version" : "1.3"
