@@ -87,10 +87,10 @@ final class BrowserMacDockTile {
         select(BrowserMacAppIconAssets.customName)
     }
 
-    /// Forgets the custom icon, and returns to Crest's own icon if it was the one picked.
-    func removeCustomImage() {
+    /// Returns to Crest's own icon and forgets the custom one.
+    func resetIcon() {
         defaults.removeObject(forKey: BrowserMacAppIconAssets.customImageKey)
-        if iconName == BrowserMacAppIconAssets.customName { select("") } else { announceChange() }
+        select("")
     }
 
     /// Redraws the tile and tells the Dock tile plug-in to do the same.

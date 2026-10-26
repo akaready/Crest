@@ -34,12 +34,6 @@ struct BrowserPlatformAppIconSettingsSection: View {
                 customChoice
             }
             .padding(.vertical, 8)
-            HStack {
-                Button("Choose Image…") { isChoosingImage = true }
-                if customImageData != nil {
-                    Button("Remove Custom Icon") { BrowserMacDockTile.shared.removeCustomImage() }
-                }
-            }
         }
         .onAppear {
             appearanceObserver = BrowserMacAppIconAppearanceObserver { appearanceRevision += 1 }
@@ -69,7 +63,7 @@ struct BrowserPlatformAppIconSettingsSection: View {
 
     private var resettable: CrestResettableSetting {
         CrestResettableSetting(title: "App icon", isDefault: selectedName.isEmpty) {
-            if !BrowserMacDockTile.shared.select("") { report(Self.genericError) }
+            BrowserMacDockTile.shared.resetIcon()
         }
     }
 
@@ -91,16 +85,12 @@ struct BrowserPlatformAppIconSettingsSection: View {
         }
     }
 
-    /// The picture the person chose, or an empty icon that asks for one.
+    /// The picture the person chose, or an empty icon. Either way a click asks for a picture to use.
     private var customChoice: some View {
         let name = BrowserMacAppIconAssets.customName
-        let image = BrowserMacAppIconAssets.customImage(in: BrowserMacDockTile.shared.defaults)
+        let image = customImageData.flatMap(NSImage.init(data:))
         return choice(name: name, title: "Custom") {
-            if image == nil {
-                isChoosingImage = true
-            } else if !BrowserMacDockTile.shared.select(name) {
-                report(Self.genericError)
-            }
+            isChoosingImage = true
         } artwork: {
             if let image {
                 Image(nsImage: image).resizable().scaledToFit()
