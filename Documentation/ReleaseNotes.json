@@ -4601,6 +4601,10 @@
     "custom-app-icon-tile-click": {
       "category": "internal",
       "message": "Clicking the Custom tile in Appearance settings always asks for a picture, and the separate Choose Image row is gone."
+    },
+    "custom-app-icon-reset-and-picker": {
+      "category": "improved",
+      "message": "In Appearance settings, clicking the Custom app icon tile chooses its picture, replacing any earlier one, and Reset in the App icon group also forgets the custom picture."
     }
   }
 }
