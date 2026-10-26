@@ -4593,6 +4593,10 @@
     "custom-app-icon-upload": {
       "category": "new",
       "message": "Appearance settings can use any picture you choose as Crest's app icon on the Mac, in the Dock and wherever the app icon appears, and Remove Custom Icon returns to Crest's own."
+    },
+    "custom-app-icon-checks": {
+      "category": "internal",
+      "message": "A custom app icon must be a square image of at least 256 pixels and under 25 MB, a picture with square corners gets the macOS icon shape, and the Custom tile in Appearance settings is drawn like the other icons."
     }
   }
 }

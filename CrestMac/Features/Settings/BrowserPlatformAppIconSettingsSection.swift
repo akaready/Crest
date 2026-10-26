@@ -2,19 +2,29 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct BrowserPlatformAppIconSettingsSection: View {
+    /// The side of an icon tile. A macOS icon's artwork fills 824 of the 1024 points of its canvas.
+    private static let tileSide: CGFloat = 58
+    private static let artworkSide = tileSide * 824 / 1024
+
     @AppStorage(BrowserMacAppIconAssets.preferenceKey, store: BrowserMacDockTile.shared.defaults)
     private var selectedName = ""
     @AppStorage(BrowserMacAppIconAssets.customImageKey, store: BrowserMacDockTile.shared.defaults)
     private var customImageData: Data?
     @State private var showsError = false
+    @State private var errorMessage = Self.genericError
     @State private var isChoosingImage = false
+    @State private var isHoveringCustom = false
     @State private var appearanceRevision = 0
     @State private var appearanceObserver: BrowserMacAppIconAppearanceObserver?
+
+    private static let genericError: LocalizedStringResource = "Crest could not load this icon. Please try again."
 
     var body: some View {
         CrestSettingsGroup(
             "App icon",
-            settings: [resettable]
+            settings: [resettable],
+            footnote:
+                "A custom icon is a square PNG, 512 × 512 pixels or larger. One with square corners gets the macOS icon shape."
         ) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 78), spacing: 12)], spacing: 16) {
                 iconChoice(name: "", title: "Crest")
@@ -39,28 +49,38 @@ struct BrowserPlatformAppIconSettingsSection: View {
             appearanceObserver = nil
         }
         .fileImporter(isPresented: $isChoosingImage, allowedContentTypes: [.image]) { result in
-            if case .success(let url) = result {
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                showsError = !BrowserMacDockTile.shared.chooseCustomImage(at: url)
+            guard case .success(let url) = result else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                try BrowserMacDockTile.shared.chooseCustomImage(at: url)
+            } catch let rejection as BrowserMacCustomAppIcon.Rejection {
+                report(rejection.message)
+            } catch {
+                report(Self.genericError)
             }
         }
         .alert("Couldn’t change app icon", isPresented: $showsError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Crest could not load this icon. Please try again.")
+            Text(errorMessage)
         }
     }
 
     private var resettable: CrestResettableSetting {
         CrestResettableSetting(title: "App icon", isDefault: selectedName.isEmpty) {
-            showsError = !BrowserMacDockTile.shared.select("")
+            if !BrowserMacDockTile.shared.select("") { report(Self.genericError) }
         }
+    }
+
+    private func report(_ message: LocalizedStringResource) {
+        errorMessage = message
+        showsError = true
     }
 
     private func iconChoice(name: String, title: LocalizedStringResource) -> some View {
         choice(name: name, title: title) {
-            BrowserMacDockTile.shared.select(name)
+            if !BrowserMacDockTile.shared.select(name) { report(Self.genericError) }
         } artwork: {
             Image(
                 nsImage: name.isEmpty
@@ -71,40 +91,52 @@ struct BrowserPlatformAppIconSettingsSection: View {
         }
     }
 
-    /// The picture the person chose, or a plus that asks for one.
+    /// The picture the person chose, or an empty icon that asks for one.
     private var customChoice: some View {
         let name = BrowserMacAppIconAssets.customName
         let image = BrowserMacAppIconAssets.customImage(in: BrowserMacDockTile.shared.defaults)
         return choice(name: name, title: "Custom") {
             if image == nil {
                 isChoosingImage = true
-                return true
+            } else if !BrowserMacDockTile.shared.select(name) {
+                report(Self.genericError)
             }
-            return BrowserMacDockTile.shared.select(name)
         } artwork: {
             if let image {
                 Image(nsImage: image).resizable().scaledToFit()
             } else {
-                Image(systemName: "plus")
-                    .font(.title2).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(.quaternary)
+                emptyIcon
             }
         }
+        .onHover { isHoveringCustom = $0 }
     }
 
-    /// One tile of the grid. `select` returns false when the icon could not be picked.
+    /// An icon's shape with a plus in it, at the size the other icons' artwork has within their tiles.
+    private var emptyIcon: some View {
+        let shape = RoundedRectangle(cornerRadius: Self.artworkSide * 0.2237, style: .continuous)
+        return
+            shape
+            .fill(isHoveringCustom ? HierarchicalShapeStyle.tertiary : .quaternary)
+            .overlay { shape.strokeBorder(.separator, lineWidth: 0.5) }
+            .overlay {
+                Image(systemName: "plus")
+                    .font(.title2)
+                    .foregroundStyle(isHoveringCustom ? .primary : .secondary)
+            }
+            .frame(width: Self.artworkSide, height: Self.artworkSide)
+            .frame(width: Self.tileSide, height: Self.tileSide)
+    }
+
+    /// One tile of the grid. `select` picks the icon, or reports why it could not.
     private func choice(
-        name: String, title: LocalizedStringResource, select: @escaping () -> Bool,
+        name: String, title: LocalizedStringResource, select: @escaping () -> Void,
         @ViewBuilder artwork: () -> some View
     ) -> some View {
-        Button {
-            showsError = !select()
-        } label: {
+        Button(action: select) {
             VStack(spacing: 6) {
                 artwork()
                     .id(appearanceRevision)
-                    .frame(width: 58, height: 58)
+                    .frame(width: Self.tileSide, height: Self.tileSide)
                     .clipShape(.rect(cornerRadius: 13))
                     .overlay {
                         RoundedRectangle(cornerRadius: 13)

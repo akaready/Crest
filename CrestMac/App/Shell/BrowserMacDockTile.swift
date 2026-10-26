@@ -79,14 +79,12 @@ final class BrowserMacDockTile {
         return true
     }
 
-    /// Makes the picture at `url` the custom icon and picks it. False when
-    /// the file is not a picture Crest can read.
-    @discardableResult
-    func chooseCustomImage(at url: URL) -> Bool {
-        guard let image = NSImage(contentsOf: url), let data = BrowserMacAppIconAssets.customImageData(from: image)
-        else { return false }
-        defaults.set(data, forKey: BrowserMacAppIconAssets.customImageKey)
-        return select(BrowserMacAppIconAssets.customName)
+    /// Makes the picture at `url` the custom icon and picks it, or throws the
+    /// `BrowserMacCustomAppIcon.Rejection` that says why it cannot be one.
+    func chooseCustomImage(at url: URL) throws {
+        let icon = try BrowserMacCustomAppIcon(contentsOf: url)
+        defaults.set(icon.png, forKey: BrowserMacAppIconAssets.customImageKey)
+        select(BrowserMacAppIconAssets.customName)
     }
 
     /// Forgets the custom icon, and returns to Crest's own icon if it was the one picked.
