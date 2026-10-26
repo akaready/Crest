@@ -31,8 +31,8 @@ final class CrestDockTilePlugin: NSObject, @preconcurrency NSDockTilePlugIn {
         guard let tile, let appBundle, let domain, let defaults = UserDefaults(suiteName: domain) else { return }
         defaults.synchronize()
         let name = defaults.string(forKey: BrowserMacAppIconAssets.preferenceKey) ?? ""
-        if !BrowserMacAppIconAssets.usesSystemAppearance,
-            let image = BrowserMacAppIconAssets.image(named: name, in: appBundle)
+        if !BrowserMacAppIconAssets.isSystemRendered(name),
+            let image = BrowserMacAppIconAssets.image(named: name, in: appBundle, defaults: defaults)
         {
             // Drawn as the running app draws its own tile.
             let view = BrowserMacDockTileView(frame: CGRect(origin: .zero, size: tile.size))

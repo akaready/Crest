@@ -6,10 +6,52 @@ enum BrowserMacAppIconAssets {
     static let preferenceDomainKey = "CrestAppIconPreferenceDomain"
     static let changedNotification = Notification.Name("com.pauldavis.crest.appIconChanged")
     static let systemAppearanceKey = "AppleIconAppearanceTheme"
+    /// The icon name that selects the picture the person chose. Palette names start with a capital letter.
+    static let customName = "custom"
+    /// Where that picture is kept, as PNG data, beside the icon choice so the Dock tile plug-in reads it from
+    /// the same domain and a validation session keeps its own.
+    static let customImageKey = "crest.appearance.appIcon.custom"
+    /// The longest side the picture is kept at, which covers the largest Dock tile on a Retina display.
+    static let customImageSide: CGFloat = 512
 
     static var usesSystemAppearance: Bool {
         let theme = UserDefaults.standard.string(forKey: systemAppearanceKey)?.lowercased() ?? ""
         return theme.contains("clear") || theme.contains("tinted") || theme.contains("mono")
+    }
+
+    /// Whether Icon Services draws the icon `name` in the system's Clear and Tinted looks. A picture the person
+    /// chose is drawn as it is.
+    static func isSystemRendered(_ name: String) -> Bool {
+        usesSystemAppearance && name != customName
+    }
+
+    /// The picture the person chose, or nil before they choose one.
+    static func customImage(in defaults: UserDefaults) -> NSImage? {
+        defaults.data(forKey: customImageKey).flatMap(NSImage.init(data:))
+    }
+
+    /// `image`, fitted into a square and encoded as the PNG kept for the custom icon.
+    static func customImageData(from image: NSImage) -> Data? {
+        let side = customImageSide
+        let scale = min(side / image.size.width, side / image.size.height, 1)
+        let fitted = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+        guard fitted.width >= 1, fitted.height >= 1,
+            let bitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(side), pixelsHigh: Int(side), bitsPerSample: 8,
+                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                bytesPerRow: 0, bitsPerPixel: 0),
+            let context = NSGraphicsContext(bitmapImageRep: bitmap)
+        else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .high
+        image.draw(
+            in: NSRect(
+                x: (side - fitted.width) / 2, y: (side - fitted.height) / 2, width: fitted.width,
+                height: fitted.height),
+            from: .zero, operation: .sourceOver, fraction: 1)
+        NSGraphicsContext.restoreGraphicsState()
+        return bitmap.representation(using: .png, properties: [:])
     }
 
     /// The palette images already loaded, by bundle and resource. Settings
@@ -17,7 +59,8 @@ enum BrowserMacAppIconAssets {
     @MainActor private static var loadedImages: [String: NSImage] = [:]
 
     @MainActor
-    static func image(named name: String, in bundle: Bundle) -> NSImage? {
+    static func image(named name: String, in bundle: Bundle, defaults: UserDefaults = .standard) -> NSImage? {
+        if name == customName { return customImage(in: defaults) }
         guard name.range(of: "^Crest[A-Z][a-z]{1,20}$", options: .regularExpression) != nil,
             let light = loadedImage(name + "DockLight", in: bundle)
         else { return nil }

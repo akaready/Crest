@@ -38,9 +38,14 @@ final class BrowserMacDockTile {
     /// The face as last drawn.
     private var face: Face?
 
-    /// Whether the person picked a palette icon rather than Crest's own.
+    /// The icon the person picked: a palette name, the custom icon's name, or empty for Crest's own.
+    private var iconName: String {
+        defaults.string(forKey: BrowserMacAppIconAssets.preferenceKey) ?? ""
+    }
+
+    /// Whether the person picked an icon rather than Crest's own.
     private var hasPaletteIcon: Bool {
-        !(defaults.string(forKey: BrowserMacAppIconAssets.preferenceKey) ?? "").isEmpty
+        !iconName.isEmpty
     }
 
     // MARK: - Initializers
@@ -61,28 +66,52 @@ final class BrowserMacDockTile {
 
     // MARK: - Actions - Icon
 
-    /// Picks the palette icon `name`, or Crest's own icon for an empty name,
-    /// and tells the Dock tile plug-in. False when there is no such icon.
+    /// Picks the palette icon `name`, the custom icon, or Crest's own icon
+    /// for an empty name, and tells the Dock tile plug-in. False when there
+    /// is no such icon.
     @discardableResult
     func select(_ name: String) -> Bool {
-        guard name.isEmpty || BrowserMacAppIconAssets.image(named: name, in: .main) != nil else { return false }
+        guard name.isEmpty || BrowserMacAppIconAssets.image(named: name, in: .main, defaults: defaults) != nil
+        else { return false }
         defaults.set(name, forKey: BrowserMacAppIconAssets.preferenceKey)
         defaults.synchronize()
+        announceChange()
+        return true
+    }
+
+    /// Makes the picture at `url` the custom icon and picks it. False when
+    /// the file is not a picture Crest can read.
+    @discardableResult
+    func chooseCustomImage(at url: URL) -> Bool {
+        guard let image = NSImage(contentsOf: url), let data = BrowserMacAppIconAssets.customImageData(from: image)
+        else { return false }
+        defaults.set(data, forKey: BrowserMacAppIconAssets.customImageKey)
+        return select(BrowserMacAppIconAssets.customName)
+    }
+
+    /// Forgets the custom icon, and returns to Crest's own icon if it was the one picked.
+    func removeCustomImage() {
+        defaults.removeObject(forKey: BrowserMacAppIconAssets.customImageKey)
+        if iconName == BrowserMacAppIconAssets.customName { select("") } else { announceChange() }
+    }
+
+    /// Redraws the tile and tells the Dock tile plug-in to do the same.
+    private func announceChange() {
         refreshIcon()
         let domain =
             Bundle.main.object(forInfoDictionaryKey: BrowserMacAppIconAssets.preferenceDomainKey) as? String
             ?? Bundle.main.bundleIdentifier
         DistributedNotificationCenter.default().postNotificationName(
             BrowserMacAppIconAssets.changedNotification, object: domain, userInfo: nil, deliverImmediately: true)
-        return true
     }
 
     /// Makes the picked icon the application's, which the About panel and
     /// notifications show too, and redraws the tile.
     private func refreshIcon() {
-        let name = defaults.string(forKey: BrowserMacAppIconAssets.preferenceKey) ?? ""
+        let name = iconName
         NSApp.applicationIconImage =
-            BrowserMacAppIconAssets.usesSystemAppearance ? nil : BrowserMacAppIconAssets.image(named: name, in: .main)
+            BrowserMacAppIconAssets.isSystemRendered(name)
+            ? nil : BrowserMacAppIconAssets.image(named: name, in: .main, defaults: defaults)
         view.image = NSApp.applicationIconImage
         face = nil
         redraw()
@@ -105,7 +134,7 @@ final class BrowserMacDockTile {
     /// and takes the tile back if anything else drew there.
     private func redraw() {
         let live = state?.downloads.filter(\.phase.isLive) ?? []
-        let systemRendered = BrowserMacAppIconAssets.usesSystemAppearance
+        let systemRendered = BrowserMacAppIconAssets.isSystemRendered(iconName)
         let progress = systemRendered ? nil : Self.progress(of: live)
         let next = Face(
             drawsIcon: !systemRendered && (hasPaletteIcon || progress != nil),
