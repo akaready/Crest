@@ -1637,6 +1637,9 @@
     "A Space’s profile changed." : {
 
     },
+    "A square PNG, 512 × 512 pixels or larger. One with square corners gets the macOS icon shape." : {
+
+    },
     "A tab names a folder in another Space." : {
 
     },
@@ -3248,6 +3251,9 @@
     "Choose a shape to color its field" : {
 
     },
+    "Choose a square image." : {
+
+    },
     "Choose a starting point, then make it yours. Reset controls return to this preset." : {
 
     },
@@ -3255,6 +3261,12 @@
 
     },
     "Choose an emoji" : {
+
+    },
+    "Choose an image at least 256 × 256 pixels." : {
+
+    },
+    "Choose an image file under 25 MB." : {
 
     },
     "Choose another shortcut." : {
@@ -3280,6 +3292,9 @@
 
     },
     "Choose Folder…" : {
+
+    },
+    "Choose Image…" : {
 
     },
     "Choose Language" : {
@@ -4377,6 +4392,9 @@
           }
         }
       }
+    },
+    "Crest could not read this file as an image." : {
+
     },
     "Crest could not read this file." : {
       "localizations" : {
@@ -10846,6 +10864,9 @@
       }
     },
     "Replace Icon" : {
+
+    },
+    "Replace Image…" : {
 
     },
     "Replace the iCloud Copy?" : {

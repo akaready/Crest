@@ -9,7 +9,8 @@ struct BrowserPlatformCurrentAppIcon: View {
 
     var body: some View {
         Image(
-            nsImage: BrowserMacAppIconAssets.image(named: selectedName, in: .main)
+            nsImage: BrowserMacAppIconAssets.image(
+                named: selectedName, in: .main, defaults: BrowserMacDockTile.shared.defaults)
                 ?? NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
         )
         .resizable()
